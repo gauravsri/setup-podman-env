@@ -2,6 +2,22 @@
 
 A reusable, modular environment setup system for managing containerized development environments with Podman. Designed for easy configuration and cross-project portability.
 
+## ✨ Latest Updates
+
+### 🔧 **Port Conflict Resolution** (v2.0)
+- **Fixed all service port conflicts** - No more collisions between Dremio/Spark (8080) or Redpanda/Spark workers
+- **Conflict-free defaults**: Spark Master UI moved to 8070, Workers to 8200+, Redpanda services to 8100+
+- **Comprehensive port allocation strategy** with dedicated ranges for different service types
+
+### 🚀 **Project Wrapper Framework** (v2.0)
+- **Reduced setup complexity**: Project scripts now ~22 lines (down from ~130 lines)
+- **Reusable functions**: Common utilities abstracted in `project-wrapper.sh`
+- **Flexible service selection**: Choose exactly which services your project needs
+- **Cross-project portability**: Template works seamlessly across multiple projects
+
+### 📦 **8 Production-Ready Services**
+Complete containerized development stack with health checks, logging, and status monitoring.
+
 ## 🚀 Quick Start
 
 ### For New Projects
@@ -31,7 +47,7 @@ cp .env.example .env  # If needed
 cp -r setup-podman-env /path/to/your/project/
 
 # Option B: Git submodule
-git submodule add <template-repo-url> setup-podman-env
+git submodule add https://github.com/gauravsri/setup-podman-env.git setup-podman-env
 
 # 2. Create project-specific setup using project wrapper
 # See project-wrapper.sh for common functions and patterns
@@ -281,6 +297,41 @@ setup-podman-env/
 └── README.md              # This file
 ```
 
+## 🚀 Project Wrapper Framework
+
+The project wrapper framework reduces project setup complexity and ensures consistency across projects.
+
+### Key Benefits
+- **Minimal Project Code**: Setup scripts reduced from ~130 to ~22 lines
+- **Reusable Functions**: Common utilities abstracted in `project-wrapper.sh`
+- **Service Selection**: Flexible `ENABLED_SERVICES` configuration
+- **Validation**: Automatic template and configuration validation
+- **Error Handling**: Comprehensive error messages and troubleshooting
+
+### Project Setup Example
+```bash
+# In your project's scripts/setup-env.sh
+#!/bin/bash
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# Load project wrapper framework
+source "$SCRIPT_DIR/../setup-podman-env/project-wrapper.sh"
+
+# Initialize with project-specific configuration
+init_project_wrapper "$SCRIPT_DIR" "my-project"
+
+# Standard main function handles all commands
+standard_main "MY PROJECT" "$@"
+```
+
+### Available Functions
+- `init_project_wrapper()`: Load configuration and validate template
+- `parse_enabled_services()`: Parse and validate ENABLED_SERVICES
+- `start_enabled_services()`: Start only the services your project needs
+- `stop_enabled_services()`: Stop all enabled services
+- `show_services_status()`: Display status of enabled services
+- `standard_main()`: Handle all standard commands (start/stop/status/logs)
+
 ## 🛠️ Development Workflow
 
 ### For New Projects
@@ -317,15 +368,26 @@ setup-podman-env/
 
 ## 🔍 Monitoring & Logs
 
-### Service URLs (default ports, configurable in .env)
+### Service URLs (conflict-free default ports, configurable in .env)
 - **MinIO Console**: http://localhost:9001
 - **Dremio Web UI**: http://localhost:8080
 - **Airflow Web UI**: http://localhost:8090
 - **ZincSearch API**: http://localhost:4080
 - **Redpanda Admin**: http://localhost:9644
+- **Redpanda REST Proxy**: http://localhost:8100 ✅ **(moved from 8082)**
+- **Redpanda Schema Registry**: http://localhost:8101 ✅ **(moved from 8081)**
 - **Dex OIDC**: http://localhost:5556/dex
-- **Spark Master UI**: http://localhost:8080 (may conflict with Dremio)
+- **Spark Master UI**: http://localhost:8070 ✅ **(moved from 8080)**
+- **Spark Worker UIs**: http://localhost:8200+ ✅ **(moved from 8081+)**
 - **Postfix SMTP**: localhost:1587
+
+### 🔧 Port Conflict Resolution
+All port conflicts have been resolved in v2.0:
+- **Dremio (8080) vs Spark Master (8080)** → Spark moved to **8070**
+- **Redpanda Schema Registry (8081) vs Spark Worker 1 (8081)** → Redpanda moved to **8101**, Spark to **8200**
+- **Redpanda REST Proxy (8082) vs Spark Worker 2 (8082)** → Redpanda moved to **8100**
+
+You can now safely enable any combination of services without port conflicts!
 
 ### Log Access
 ```bash
@@ -447,14 +509,83 @@ docker exec postfix postqueue -p
 - **Hot Reloading**: Services support configuration updates
 - **Development Mode**: Optimized settings for local development
 
+## ⚙️ Advanced Configuration
+
+### Custom Port Allocation
+If you need custom ports to avoid conflicts with existing services:
+
+```bash
+# In your project's .env file
+# Data services range: 9000-9099
+MINIO_PORT="9010"
+REDPANDA_KAFKA_PORT="9020"
+
+# Web UI range: 8000-8099
+DREMIO_HTTP_PORT="8050"
+AIRFLOW_PORT="8060"
+SPARK_MASTER_WEB_PORT="8070"
+
+# API services range: 4000-4999
+ZINCSEARCH_HTTP_PORT="4090"
+DEX_HTTP_PORT="5560"
+
+# Worker services range: 8200-8299
+SPARK_WORKER_WEB_PORT_BASE="8250"
+```
+
+### Production Considerations
+- **Security**: Change default passwords in production
+- **Resources**: Adjust memory limits based on your workload
+- **Networking**: Consider using custom network ranges for production
+- **Persistence**: Use external volumes for production data
+- **Monitoring**: Enable verbose logging for troubleshooting
+
+### Troubleshooting Common Issues
+
+#### Port Already in Use
+```bash
+# Check what's using a port
+netstat -tulpn | grep :8080
+
+# Or on Windows
+netstat -an | findstr :8080
+
+# Kill process using port (Linux/Mac)
+sudo fuser -k 8080/tcp
+```
+
+#### Container Won't Start
+```bash
+# Check container logs
+./env/minio.sh logs 50
+
+# Check system resources
+podman stats
+
+# Restart individual service
+./env/dremio.sh restart
+```
+
+#### Service Can't Connect to Another Service
+```bash
+# Verify network connectivity
+podman network inspect ${PROJECT_NAME}-network
+
+# Check if both containers are on same network
+podman inspect container1 | grep NetworkMode
+podman inspect container2 | grep NetworkMode
+```
+
 ## 📋 Requirements
 
-- **Podman**: Container runtime
-- **Bash**: Shell environment
+- **Podman**: Container runtime (v3.0+)
+- **Bash**: Shell environment (v4.0+)
 - **Curl**: For health checks
+- **Git**: For template management (optional)
 - **System Resources**:
-  - 8GB+ RAM recommended
-  - 2GB+ free disk space
+  - **8GB+ RAM** recommended (minimum 4GB)
+  - **2GB+ free disk space** for container images
+  - **Available ports**: Ensure default port ranges are free
 
 ## 🤝 Contributing
 

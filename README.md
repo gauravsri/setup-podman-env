@@ -585,6 +585,128 @@ ENABLED_SERVICES="dex,postfix,redpanda"
 # Authentication, email notifications, and service communication
 ```
 
+## ⏱️ Service Startup & Initialization
+
+Understanding service startup times and proper initialization procedures is crucial for reliable development environments.
+
+### Startup Timeline & Behavior
+
+| Service | Startup Time | Health Check | Notes |
+|---------|-------------|--------------|-------|
+| **MinIO** | ~30-40 seconds | `/minio/health/live` | ✅ Fast startup (includes network setup) |
+| **Dremio** | ~3-12 minutes | `/` (root endpoint) | ⚠️ Very slow startup, memory-intensive JVM init |
+| **Airflow** | ~2-4 minutes | `/health` | ⚠️ Database init + web server startup |
+| **Spark Master** | ~15-20 seconds | `:8070` (web UI) | ✅ Quick startup |
+| **Spark Worker** | ~10-15 seconds | `:8200+` (web UI) | ✅ Fast, depends on master |
+| **Redpanda** | ~20-40 seconds | Admin API `:9644` | ✅ Moderate startup |
+| **ZincSearch** | ~10-15 seconds | `/api/index` | ✅ Fast startup |
+| **Dex** | ~5-10 seconds | `/.well-known/openid_configuration` | ✅ Very fast |
+
+### Timeout Configuration
+
+Services have configurable startup timeouts in `.env`:
+
+```bash
+# Service-specific timeouts (in seconds) - Based on observed behavior + 20% buffer
+DREMIO_STARTUP_TIMEOUT="720"    # Dremio can take up to 12 minutes
+AIRFLOW_STARTUP_TIMEOUT="300"   # Airflow can take up to 4 minutes
+# MinIO, Spark, others: No timeout needed (under 1 minute)
+```
+
+### Monitoring Startup Progress
+
+```bash
+# Check overall status
+./setup-env.sh status
+
+# Monitor specific service logs during startup
+./setup-env.sh logs dremio    # Watch Dremio initialization
+./setup-env.sh logs airflow   # Monitor Airflow web server startup
+
+# Watch containers in real-time
+podman ps -a --filter name=your-project
+
+# Monitor resource usage during startup
+podman stats your-project-dremio
+```
+
+### Startup Best Practices
+
+#### 1. Staged Startup (Recommended for Low-End Hardware)
+```bash
+# Start lightweight services first
+./setup-env.sh minio start
+./setup-env.sh zincsearch start
+
+# Wait for them to be ready, then start heavy services
+./setup-env.sh dremio start    # This will take 3-12 minutes
+./setup-env.sh airflow start   # Start after Dremio is ready
+```
+
+#### 2. Full Environment Startup
+```bash
+# Start all enabled services (defined in ENABLED_SERVICES)
+./setup-env.sh start
+# Script automatically waits for each service with appropriate timeouts
+```
+
+#### 3. Health Check Verification
+```bash
+# Manual health checks
+curl -sf http://localhost:9000/minio/health/live     # MinIO
+curl -sf http://localhost:8080                      # Dremio (may take up to 12 minutes)
+curl -sf http://localhost:8090/health              # Airflow
+curl -sf http://localhost:8070                     # Spark Master
+```
+
+### Troubleshooting Slow Startups
+
+#### Dremio Taking Too Long?
+```bash
+# Check logs for initialization progress
+./setup-env.sh logs dremio
+
+# Common startup phases:
+# 1. "Starting Dremio..." - Container starting
+# 2. "Initializing metadata store..." - Database setup
+# 3. "Web server started..." - Ready for connections
+
+# Dremio startup can take 3-12 minutes - be patient!
+# If stuck, check system resources
+podman stats spark-e2e-dremio
+```
+
+#### Airflow Startup Issues?
+```bash
+# Check database initialization
+./setup-env.sh logs airflow | grep -E "(database|db init|migration)"
+
+# Verify SQLite configuration (should use SequentialExecutor)
+./setup-env.sh logs airflow | grep -E "(executor|sqlite)"
+```
+
+#### Out of Memory?
+```bash
+# Check total memory usage
+podman stats
+
+# Adjust memory limits in .env
+DREMIO_MEMORY="512m"     # Reduce from 1g
+AIRFLOW_MEMORY="512m"    # Reduce from 1g
+```
+
+### Hardware-Specific Recommendations
+
+#### Low-End Hardware (≤8GB RAM)
+- Start services individually with monitoring
+- Use basic service combinations (avoid running all 8 services simultaneously)
+- Increase timeouts: `DREMIO_STARTUP_TIMEOUT="720"` (12min), `AIRFLOW_STARTUP_TIMEOUT="300"` (5min)
+
+#### High-End Hardware (≥16GB RAM)
+- Can safely use `./setup-env.sh start` for full environment
+- Consider running multiple project environments simultaneously
+- Default timeouts are usually sufficient
+
 ### Usage Examples
 
 #### ZincSearch Integration

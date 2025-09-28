@@ -1,5 +1,25 @@
 #!/bin/bash
 # Airflow Orchestration Engine pod management
+#
+# STARTUP INFO:
+# - Startup Time: 2-4 minutes (database init + web server)
+# - Health Check: http://localhost:8090/health (default)
+# - Timeout: Configurable via AIRFLOW_STARTUP_TIMEOUT (default: 300s/5min)
+# - Memory Usage: ~1GB (configurable via AIRFLOW_MEMORY)
+# - Executor: SequentialExecutor (SQLite compatible)
+#
+# OBSERVED INITIALIZATION PHASES:
+# 1. Container start (~15s)
+# 2. Database initialization (~45-60s)
+# 3. User creation (~20s)
+# 4. Web server startup (~30-45s)
+# 5. Scheduler initialization (~30-60s)
+#
+# TROUBLESHOOTING:
+# - Check logs: ./setup-env.sh logs airflow
+# - Monitor resources: podman stats $CONTAINER_NAME
+# - Database issues: Check SQLite + SequentialExecutor config
+# - Web UI not ready: Wait for "Airflow webserver started" in logs
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$SCRIPT_DIR/common.sh"
@@ -26,7 +46,7 @@ start_airflow() {
     # Create minimal config
     cat > "$base_dir/config/airflow.cfg" << 'EOF'
 [core]
-executor = LocalExecutor
+executor = SequentialExecutor
 sql_alchemy_conn = sqlite:////opt/airflow/airflow.db
 load_examples = False
 dags_folder = /opt/airflow/dags
@@ -53,7 +73,7 @@ EOF
         -v "$base_dir/logs:/opt/airflow/logs" \
         -v "$base_dir/plugins:/opt/airflow/plugins" \
         -v "$base_dir/config/airflow.cfg:/opt/airflow/airflow.cfg" \
-        -e "AIRFLOW__CORE__EXECUTOR=LocalExecutor" \
+        -e "AIRFLOW__CORE__EXECUTOR=SequentialExecutor" \
         -e "AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db" \
         -e "AIRFLOW__CORE__LOAD_EXAMPLES=False" \
         -e "AIRFLOW__WEBSERVER__WORKERS=1" \
@@ -79,6 +99,30 @@ stop_airflow() {
 
 logs_airflow() {
     get_container_logs "$CONTAINER_NAME" "${1:-20}"
+}
+
+status_airflow() {
+    print_header "📊 AIRFLOW STATUS"
+
+    if container_running "$CONTAINER_NAME"; then
+        print_color "$GREEN" "✓ Airflow container is running"
+        print_color "$BLUE" "Container: $CONTAINER_NAME"
+        print_color "$BLUE" "Web UI: http://localhost:$PORT"
+        print_color "$BLUE" "Admin credentials: admin/admin"
+
+        # Check if web UI is responding
+        if curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1; then
+            print_color "$GREEN" "✓ Web UI is accessible"
+        else
+            print_color "$YELLOW" "⚠ Web UI not yet ready"
+        fi
+    elif container_exists "$CONTAINER_NAME"; then
+        print_color "$YELLOW" "⚠ Airflow container exists but is not running"
+        print_color "$BLUE" "Run: $0 start"
+    else
+        print_color "$RED" "✗ Airflow container does not exist"
+        print_color "$BLUE" "Run: $0 start"
+    fi
 }
 
 create_tcp_deriv_dag() {
@@ -187,7 +231,8 @@ case "${1:-start}" in
     start) start_airflow ;;
     stop) stop_airflow ;;
     restart) stop_airflow && start_airflow ;;
+    status) status_airflow ;;
     logs) logs_airflow "$2" ;;
     create-dag) create_tcp_deriv_dag ;;
-    *) echo "Usage: $0 {start|stop|restart|logs|create-dag}" ;;
+    *) echo "Usage: $0 {start|stop|restart|status|logs|create-dag}" ;;
 esac

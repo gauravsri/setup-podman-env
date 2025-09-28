@@ -1,5 +1,27 @@
 #!/bin/bash
 # Dremio SQL Federation Engine pod management
+#
+# STARTUP INFO:
+# - Startup Time: 3-12 minutes (very slow, memory-intensive JVM initialization)
+# - Health Check: http://localhost:8080 (default)
+# - Timeout: Configurable via DREMIO_STARTUP_TIMEOUT (default: 720s/12min)
+# - Memory Usage: ~1GB (configurable via DREMIO_MEMORY)
+#
+# OBSERVED INITIALIZATION PHASES:
+# 1. Container start (~10s)
+# 2. JVM initialization (~30-60s)
+# 3. Metadata store initialization (~2-5 minutes)
+# 4. Catalog loading and GC optimization (~2-4 minutes)
+# 5. Web server startup (~30-60s)
+# 6. Service registration and discovery (~10-30s)
+#
+# TROUBLESHOOTING:
+# - Be patient! Dremio startup can take 3-12 minutes (observed behavior)
+# - Check logs: ./setup-env.sh logs dremio
+# - Monitor resources: podman stats $CONTAINER_NAME
+# - Watch for GC activity: Normal during initialization
+# - Common issues: Out of memory, slow disk I/O, insufficient CPU
+# - Low-end hardware: Allow up to 15 minutes for first startup
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$SCRIPT_DIR/common.sh"
@@ -50,10 +72,35 @@ logs_dremio() {
     get_container_logs "$CONTAINER_NAME" "${1:-20}"
 }
 
+status_dremio() {
+    print_header "📊 DREMIO STATUS"
+
+    if container_running "$CONTAINER_NAME"; then
+        print_color "$GREEN" "✓ Dremio container is running"
+        print_color "$BLUE" "Container: $CONTAINER_NAME"
+        print_color "$BLUE" "Web UI: http://localhost:$HTTP_PORT"
+        print_color "$BLUE" "JDBC: jdbc:dremio:direct=localhost:$JDBC_PORT"
+
+        # Check if web UI is responding
+        if curl -sf "http://localhost:$HTTP_PORT" >/dev/null 2>&1; then
+            print_color "$GREEN" "✓ Web UI is accessible"
+        else
+            print_color "$YELLOW" "⚠ Web UI not yet ready (startup can take 2+ minutes)"
+        fi
+    elif container_exists "$CONTAINER_NAME"; then
+        print_color "$YELLOW" "⚠ Dremio container exists but is not running"
+        print_color "$BLUE" "Run: $0 start"
+    else
+        print_color "$RED" "✗ Dremio container does not exist"
+        print_color "$BLUE" "Run: $0 start"
+    fi
+}
+
 case "${1:-start}" in
     start) start_dremio ;;
     stop) stop_dremio ;;
     restart) stop_dremio && start_dremio ;;
+    status) status_dremio ;;
     logs) logs_dremio "$2" ;;
-    *) echo "Usage: $0 {start|stop|restart|logs}" ;;
+    *) echo "Usage: $0 {start|stop|restart|status|logs}" ;;
 esac

@@ -43,14 +43,162 @@ cp .env.example .env  # If needed
 
 ```bash
 # 1. Add template as dependency
-# Option A: Copy template
+# Option A: Copy template (not recommended for production)
 cp -r setup-podman-env /path/to/your/project/
 
-# Option B: Git submodule
+# Option B: Git submodule (recommended)
 git submodule add https://github.com/gauravsri/setup-podman-env.git setup-podman-env
 
 # 2. Create project-specific setup using project wrapper
 # See project-wrapper.sh for common functions and patterns
+```
+
+## 🔗 Git Submodule Integration (Recommended)
+
+### Why Use Git Submodule?
+- ✅ **Version Control**: Template version is tracked with your project
+- ✅ **Portability**: Works on any machine after `git clone --recursive`
+- ✅ **Team Collaboration**: Everyone gets the same template version
+- ✅ **Easy Updates**: Update template with `git submodule update --remote`
+- ✅ **Independence**: No dependency on local file system layout
+
+### Setup with Git Submodule
+
+#### Step 1: Add Submodule to Your Project
+```bash
+cd your-project
+git submodule add https://github.com/gauravsri/setup-podman-env.git setup-podman-env
+```
+
+#### Step 2: Configure Your Project
+```bash
+# Create scripts/.env with your configuration
+cat > scripts/.env << 'EOF'
+PROJECT_NAME="my-project"
+PROJECT_DESCRIPTION="My Project Description"
+
+# Template path for git submodule
+TEMPLATE_PATH="../setup-podman-env"
+
+# Choose your services
+ENABLED_SERVICES="minio,dremio,airflow"
+
+# Network configuration
+NETWORK_NAME="${PROJECT_NAME}-network"
+EOF
+```
+
+#### Step 3: Create Project Setup Script
+```bash
+# Create scripts/setup-env.sh
+cat > scripts/setup-env.sh << 'EOF'
+#!/bin/bash
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# Load project wrapper framework from submodule
+source "$SCRIPT_DIR/../setup-podman-env/project-wrapper.sh"
+
+# Initialize with project configuration
+init_project_wrapper "$SCRIPT_DIR" "my-project"
+
+# Handle all commands via standard framework
+standard_main "MY PROJECT" "$@"
+EOF
+
+chmod +x scripts/setup-env.sh
+```
+
+#### Step 4: Commit and Push
+```bash
+git add .gitmodules setup-podman-env scripts/
+git commit -m "Add setup-podman-env as git submodule"
+git push
+```
+
+### Working with Git Submodules
+
+#### For New Team Members
+```bash
+# Clone with submodules
+git clone --recursive https://github.com/your-org/your-project.git
+
+# Or initialize submodules after clone
+git clone https://github.com/your-org/your-project.git
+cd your-project
+git submodule update --init --recursive
+```
+
+#### Updating Template Version
+```bash
+# Update to latest template version
+git submodule update --remote setup-podman-env
+
+# Commit the template update
+git add setup-podman-env
+git commit -m "Update setup-podman-env to latest version"
+git push
+```
+
+#### Working with Specific Template Versions
+```bash
+# Check current template version
+cd setup-podman-env
+git log --oneline -5
+
+# Update to specific version
+git checkout f4ab1b2  # specific commit hash
+cd ..
+git add setup-podman-env
+git commit -m "Pin setup-podman-env to version f4ab1b2"
+```
+
+### Real-World Example
+
+Here's how the **spark-e2e-regression** project uses this template:
+
+```bash
+# Project structure
+spark-e2e-regression/
+├── .gitmodules                    # Submodule configuration
+├── setup-podman-env/              # Git submodule (this template)
+├── scripts/
+│   ├── .env                      # Project-specific configuration
+│   └── setup-env.sh              # 22-line wrapper script
+└── other-project-files...
+
+# .env configuration
+PROJECT_NAME="spark-e2e"
+TEMPLATE_PATH="../setup-podman-env"
+ENABLED_SERVICES="minio,dremio,airflow"
+
+# Usage
+cd scripts
+./setup-env.sh start    # Start services
+./setup-env.sh status   # Check status
+./setup-env.sh logs     # View logs
+```
+
+### Troubleshooting Git Submodules
+
+#### Submodule Not Initialized
+```bash
+# If you see "setup-podman-env directory is empty"
+git submodule update --init --recursive
+```
+
+#### Submodule Update Conflicts
+```bash
+# Reset submodule to tracked version
+git submodule update --force
+```
+
+#### Checking Submodule Status
+```bash
+# View submodule status
+git submodule status
+
+# View submodule details
+git submodule summary
 ```
 
 ## 📦 Available Services

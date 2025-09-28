@@ -97,6 +97,11 @@ start_enabled_services() {
 
     print_info "Starting services: ${ENABLED_SERVICES}"
 
+    # Export all project configuration variables for template services
+    set -a
+    source <(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$')
+    set +a
+
     for service in "${ENABLED_SERVICES_ARRAY[@]}"; do
         service=$(echo "$service" | xargs)  # trim whitespace
         print_info "Starting $service..."
@@ -113,6 +118,11 @@ stop_enabled_services() {
 
     print_info "Stopping services: ${ENABLED_SERVICES}"
 
+    # Export all project configuration variables for template services
+    set -a
+    source <(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$')
+    set +a
+
     # Stop in reverse order
     for ((i=${#ENABLED_SERVICES_ARRAY[@]}-1; i>=0; i--)); do
         service=$(echo "${ENABLED_SERVICES_ARRAY[i]}" | xargs)  # trim whitespace
@@ -126,6 +136,11 @@ show_enabled_services_status() {
     parse_enabled_services
 
     print_info "Service status for: ${ENABLED_SERVICES}"
+
+    # Export all project configuration variables for template services
+    set -a
+    source <(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$')
+    set +a
 
     for service in "${ENABLED_SERVICES_ARRAY[@]}"; do
         service=$(echo "$service" | xargs)  # trim whitespace
@@ -315,6 +330,10 @@ standard_main() {
             else
                 # Show logs for all enabled services
                 parse_enabled_services
+                # Export all project configuration variables for template services
+                set -a
+                source <(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$')
+                set +a
                 for service in "${ENABLED_SERVICES_ARRAY[@]}"; do
                     service=$(echo "$service" | xargs)
                     echo

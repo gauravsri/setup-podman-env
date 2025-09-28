@@ -5,7 +5,11 @@
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 ENV_FILE="$SCRIPT_DIR/.env"
 
-if [[ -f "$ENV_FILE" ]]; then
+# Check if configuration is already provided via environment variables (from project wrapper)
+if [[ -n "$PROJECT_NAME" ]]; then
+    # Configuration is already loaded by project wrapper - use it directly
+    :  # no-op, just use existing environment variables
+elif [[ -f "$ENV_FILE" ]]; then
     # Load .env file, ignoring comments and empty lines
     set -a  # automatically export all variables
     source <(grep -v '^#' "$ENV_FILE" | grep -v '^$')

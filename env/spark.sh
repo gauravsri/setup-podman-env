@@ -33,6 +33,13 @@ start_spark() {
     print_info "Creating Spark volume..."
     create_volume "$VOLUME_NAME"
 
+    # Prepare volume mount if PROJECT_DIR is set
+    local volume_args="-v $VOLUME_NAME:/opt/bitnami/spark/work-dir"
+    if [[ -n "${PROJECT_DIR:-}" ]]; then
+        print_info "Mounting project directory: $PROJECT_DIR"
+        volume_args="$volume_args -v $PROJECT_DIR:/app:z"
+    fi
+
     # Start Spark Master
     print_info "Starting Spark Master..."
     podman run -d \
@@ -41,7 +48,7 @@ start_spark() {
         --hostname spark-master \
         -p "$MASTER_PORT:7077" \
         -p "$MASTER_WEB_PORT:8080" \
-        -v "$VOLUME_NAME:/opt/bitnami/spark/work-dir" \
+        $volume_args \
         -e SPARK_MODE=master \
         --memory="$MEMORY" \
         "$IMAGE"
@@ -67,7 +74,7 @@ start_spark() {
             --network "$NETWORK_NAME" \
             --hostname "$worker_name" \
             -p "$worker_web_port:8081" \
-            -v "$VOLUME_NAME:/opt/bitnami/spark/work-dir" \
+            $volume_args \
             -e SPARK_MODE=worker \
             -e SPARK_MASTER_URL=spark://spark-master:7077 \
             -e SPARK_WORKER_CORES="$WORKER_CORES" \

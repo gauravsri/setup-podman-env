@@ -40,11 +40,38 @@ print_header() {
     print_color "$BLUE" "=============================================="
 }
 
+print_info() {
+    print_color "$BLUE" "ℹ️  $1"
+}
+
+print_success() {
+    print_color "$GREEN" "✅ $1"
+}
+
+print_warning() {
+    print_color "$YELLOW" "⚠️  $1"
+}
+
+print_error() {
+    print_color "$RED" "❌ $1"
+}
+
 ensure_network() {
     if ! podman network exists "$NETWORK_NAME" 2>/dev/null; then
         print_color "$YELLOW" "Creating network: $NETWORK_NAME"
         podman network create "$NETWORK_NAME" >/dev/null
         print_color "$GREEN" "✓ Network created"
+    fi
+}
+
+create_volume() {
+    local volume_name="$1"
+    if ! podman volume exists "$volume_name" 2>/dev/null; then
+        print_info "Creating volume: $volume_name"
+        podman volume create "$volume_name" >/dev/null
+        print_success "Volume created: $volume_name"
+    else
+        print_info "Volume already exists: $volume_name"
     fi
 }
 

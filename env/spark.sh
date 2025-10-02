@@ -41,14 +41,10 @@ start_spark() {
         --hostname spark-master \
         -p "$MASTER_PORT:7077" \
         -p "$MASTER_WEB_PORT:8080" \
-        -v "$VOLUME_NAME:/opt/spark/work-dir" \
+        -v "$VOLUME_NAME:/opt/bitnami/spark/work-dir" \
         -e SPARK_MODE=master \
-        -e SPARK_MASTER_HOST=spark-master \
-        -e SPARK_MASTER_PORT=7077 \
-        -e SPARK_MASTER_WEBUI_PORT=8080 \
         --memory="$MEMORY" \
-        "$IMAGE" \
-        /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+        "$IMAGE"
 
     # Wait for master to be ready
     print_info "Waiting for Spark Master to be ready..."
@@ -71,15 +67,13 @@ start_spark() {
             --network "$NETWORK_NAME" \
             --hostname "$worker_name" \
             -p "$worker_web_port:8081" \
-            -v "$VOLUME_NAME:/opt/spark/work-dir" \
+            -v "$VOLUME_NAME:/opt/bitnami/spark/work-dir" \
             -e SPARK_MODE=worker \
             -e SPARK_MASTER_URL=spark://spark-master:7077 \
             -e SPARK_WORKER_CORES="$WORKER_CORES" \
             -e SPARK_WORKER_MEMORY="$WORKER_MEMORY" \
-            -e SPARK_WORKER_WEBUI_PORT=8081 \
             --memory="$WORKER_MEMORY" \
-            "$IMAGE" \
-            /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+            "$IMAGE"
     done
 
     # Wait a bit for workers to register

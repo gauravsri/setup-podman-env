@@ -4,6 +4,12 @@ A reusable, modular environment setup system for managing containerized developm
 
 ## ✨ Latest Updates
 
+### 🐳 **Project Directory Mounting** (v2.1)
+- **NEW: PROJECT_DIR support** - Mount your project directory into Spark containers for local testing
+- **Seamless local development** - Access JARs, configs, and data from within containers
+- **Bitnami Spark compatibility** - Updated Spark template to work with `bitnami/spark` images
+- **Enhanced common utilities** - Added `print_info`, `print_success`, `print_warning`, `print_error`, `create_volume` functions
+
 ### 🔧 **Port Conflict Resolution** (v2.0)
 - **Fixed all service port conflicts** - No more collisions between Dremio/Spark (8080) or Redpanda/Spark workers
 - **Conflict-free defaults**: Spark Master UI moved to 8070, Workers to 8200+, Redpanda services to 8100+
@@ -79,6 +85,10 @@ PROJECT_DESCRIPTION="My Project Description"
 
 # Template path for git submodule
 TEMPLATE_PATH="../setup-podman-env"
+
+# Project directory to mount in containers (optional, for Spark)
+# Use Windows-style path for Podman on Windows
+PROJECT_DIR="C:/Users/your-name/path/to/project"
 
 # Choose your services
 ENABLED_SERVICES="minio,dremio,airflow"
@@ -372,11 +382,14 @@ git submodule summary
 
 #### Apache Spark (Distributed Computing)
 - **Purpose**: Large-scale data processing and analytics
-- **Master UI**: http://localhost:8080 (configurable)
+- **Master UI**: http://localhost:8070 (default, configurable)
+- **Worker UI**: http://localhost:8200+ (one per worker)
 - **Master URL**: spark://localhost:7077
 - **Features**: Batch processing, streaming, ML, graph processing
 - **Configuration**: Configurable workers, memory, cores
-- **Use Cases**: ETL pipelines, data science, machine learning
+- **Project Mounting**: Set `PROJECT_DIR` in .env to mount your project at `/app` in containers
+- **Image**: Uses `bitnami/spark` (tested with 3.5.3)
+- **Use Cases**: ETL pipelines, data science, machine learning, local Spark job testing
 
 ### Workflow & Orchestration
 
@@ -479,6 +492,75 @@ standard_main "MY PROJECT" "$@"
 - `stop_enabled_services()`: Stop all enabled services
 - `show_services_status()`: Display status of enabled services
 - `standard_main()`: Handle all standard commands (start/stop/status/logs)
+
+## 🐳 Project Directory Mounting (Spark)
+
+The Spark service supports mounting your project directory into containers for local development and testing.
+
+### Configuration
+
+In your `scripts/.env`:
+```bash
+# Mount your project directory at /app in Spark containers
+PROJECT_DIR="C:/Users/your-name/path/to/project"  # Windows path
+# or
+PROJECT_DIR="/home/user/projects/my-project"      # Linux path
+```
+
+### How It Works
+
+When `PROJECT_DIR` is set:
+- **Spark Master**: Your project is mounted at `/app` with read/write access
+- **Spark Workers**: Same mount ensures consistent access across cluster
+- **Volume Flag**: Uses `-v $PROJECT_DIR:/app:z` for SELinux compatibility
+
+### Use Cases
+
+#### Running Spark Jobs Locally
+```bash
+# Inside Spark container
+podman exec spark-master-hbase sh -c '
+  /opt/bitnami/spark/bin/spark-submit \
+    --class com.example.MyApp \
+    --master spark://spark-master:7077 \
+    /app/target/my-app-1.0.0.jar \
+    -c /app/config/my-config.properties
+'
+```
+
+#### Accessing Project Resources
+```bash
+# Your project structure is available at /app
+/app/
+├── target/
+│   └── my-app.jar          # Built JARs
+├── config/
+│   └── application.conf    # Configuration files
+├── data/
+│   └── input.parquet       # Test data
+└── src/
+    └── main/               # Source code
+```
+
+#### Example: HBase to Delta Converter
+```bash
+# From hbase-delta-converter project
+PROJECT_DIR="C:/Users/gaura/Local/claude/hbase-delta-convertor"
+ENABLED_SERVICES="spark"
+
+# Spark containers can now access:
+# - /app/target/hbase-delta-convertor-1.0.0.jar
+# - /app/config/user_table_conversion_local.properties
+# - /app/hbase-snapshot/ (test data)
+# - /app/delta-output/ (write results)
+```
+
+### Benefits
+
+✅ **No JAR copying** - JARs built locally are immediately available in containers
+✅ **Live configuration** - Edit configs and rerun without container rebuild
+✅ **Shared test data** - Use same data for local and containerized testing
+✅ **Output persistence** - Results written to `/app` persist on host
 
 ## 🛠️ Development Workflow
 

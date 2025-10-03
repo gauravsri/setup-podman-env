@@ -14,10 +14,10 @@ IMAGE="${SPARK_IMAGE:-apache/spark:latest}"
 MASTER_PORT="${SPARK_MASTER_PORT:-7077}"
 MASTER_WEB_PORT="${SPARK_MASTER_WEB_PORT:-8070}"
 WORKER_WEB_PORT_BASE="${SPARK_WORKER_WEB_PORT_BASE:-8200}"
-MEMORY="${SPARK_MEMORY:-1g}"
-WORKER_MEMORY="${SPARK_WORKER_MEMORY:-1g}"
-WORKER_CORES="${SPARK_WORKER_CORES:-1}"
-WORKER_COUNT="${SPARK_WORKER_COUNT:-1}"
+MEMORY="${SPARK_MEMORY:-2g}"
+WORKER_MEMORY="${SPARK_WORKER_MEMORY:-4g}"
+WORKER_CORES="${SPARK_WORKER_CORES:-4}"
+WORKER_COUNT="${SPARK_WORKER_COUNT:-2}"
 VOLUME_NAME="${SPARK_VOLUME_NAME:-spark-data}"
 
 start_spark() {
@@ -51,6 +51,7 @@ start_spark() {
         $volume_args \
         -e SPARK_MODE=master \
         --memory="$MEMORY" \
+        --cpus=2 \
         "$IMAGE"
 
     # Wait for master to be ready
@@ -80,6 +81,7 @@ start_spark() {
             -e SPARK_WORKER_CORES="$WORKER_CORES" \
             -e SPARK_WORKER_MEMORY="$WORKER_MEMORY" \
             --memory="$WORKER_MEMORY" \
+            --cpus="$WORKER_CORES" \
             "$IMAGE"
     done
 

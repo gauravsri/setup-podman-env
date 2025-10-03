@@ -18,7 +18,7 @@ init_project_wrapper() {
     # Load project-specific configuration
     if [[ -f "$SCRIPT_DIR/.env" ]]; then
         set -a
-        source <(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^$')
+        source "$SCRIPT_DIR/.env"
         set +a
     else
         echo "❌ Project .env file not found at $SCRIPT_DIR/.env"
@@ -105,7 +105,7 @@ start_enabled_services() {
     for service in "${ENABLED_SERVICES_ARRAY[@]}"; do
         service=$(echo "$service" | xargs)  # trim whitespace
         print_info "Starting $service..."
-        if ! "$TEMPLATE_FULL_PATH/env/$service.sh" start; then
+        if ! bash "$TEMPLATE_FULL_PATH/env/$service.sh" start; then
             print_error "Failed to start $service"
             return 1
         fi
@@ -127,7 +127,7 @@ stop_enabled_services() {
     for ((i=${#ENABLED_SERVICES_ARRAY[@]}-1; i>=0; i--)); do
         service=$(echo "${ENABLED_SERVICES_ARRAY[i]}" | xargs)  # trim whitespace
         print_info "Stopping $service..."
-        "$TEMPLATE_FULL_PATH/env/$service.sh" stop
+        bash "$TEMPLATE_FULL_PATH/env/$service.sh" stop
     done
 }
 
@@ -146,7 +146,7 @@ show_enabled_services_status() {
         service=$(echo "$service" | xargs)  # trim whitespace
         echo
         print_info "=== $service Status ==="
-        "$TEMPLATE_FULL_PATH/env/$service.sh" status
+        bash "$TEMPLATE_FULL_PATH/env/$service.sh" status
     done
 }
 
